@@ -6,16 +6,19 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import io
 
-# Load Data
-df = pd.read_csv("propwealthnext_investor_smartdata.csv")
+# Load raw Excel data
+df = pd.read_excel("Dataa.xlsx", sheet_name="Sheet2")
+df.columns = df.columns.str.strip()
+df = df.rename(columns={"Lat": "Latitude", "Long": "Longitude"})
 
-st.set_page_config(page_title="Smart Investor Dashboard", layout="wide")
+# Drop rows with missing key fields
+df = df[df["Suburb"].notna() & df["Latitude"].notna() & df["Longitude"].notna()]
 
-# Sidebar Filters
+# Sidebar filters
 st.sidebar.header("🎯 Filter for Investor Research")
 score_range = st.sidebar.slider("Investor Score Range", 0, 100, (60, 100))
-selected_state = st.sidebar.multiselect("Filter by State", options=df["State"].unique(), default=df["State"].unique())
-selected_type = st.sidebar.multiselect("Property Type", options=df["Property\nType"].unique(), default=df["Property\nType"].unique())
+selected_state = st.sidebar.multiselect("Filter by State", df["State"].dropna().unique(), default=df["State"].dropna().unique())
+selected_type = st.sidebar.multiselect("Property Type", df["Property\nType"].dropna().unique(), default=df["Property\nType"].dropna().unique())
 
 # Apply filters
 filtered_df = df[
@@ -24,12 +27,12 @@ filtered_df = df[
     (df["Property\nType"].isin(selected_type))
 ]
 
-st.title("🏡 Smart Investor Dashboard")
+st.title("🏡 Smart Investor Dashboard (Original Data)")
 
-# Suburb selection
-selected_suburb = st.selectbox("📍 Choose a Suburb to View Report", filtered_df["Suburb"].unique())
+# Suburb selector
+selected_suburb = st.selectbox("📍 Choose a Suburb", filtered_df["Suburb"].unique())
 
-# Display suburb metrics
+# Display original raw values
 if selected_suburb:
     row = filtered_df[filtered_df["Suburb"] == selected_suburb].iloc[0]
     st.markdown(f"""
@@ -38,13 +41,13 @@ if selected_suburb:
     💰 <b>Investor Score</b>: {row['Investor Score (Out Of 100)']}<br>
     📈 <b>10 Year Growth</b>: {row['10 Year Growth']}%<br>
     🔥 <b>Growth Gap Index</b>: {row['Growth Gap Index']}<br>
-    💸 <b>Yield</b>: {row['Yield Score']}%<br>
-    🧮 <b>Buy Affordability</b>: {row['Buy Affordability Score']} yrs<br>
-    📉 <b>Rent Affordability</b>: {row['Rent Affordability Score']}%
+    💸 <b>Yield</b>: {row['Yield']}%<br>
+    🧮 <b>Buy Affordability</b>: {row['Buy Affordability (Years)']} yrs<br>
+    📉 <b>Rent Affordability</b>: {row['Rent Affordability (% Of Income)']}%
     </div>
     """, unsafe_allow_html=True)
 
-# Geo Map
+# Geo map
 st.subheader("🗺️ Suburb Map Based on Investor Score")
 map_fig = px.scatter_mapbox(
     filtered_df,
@@ -54,26 +57,28 @@ map_fig = px.scatter_mapbox(
     size="Growth Gap Index",
     hover_name="Suburb",
     zoom=4,
-    mapbox_style="open-street-map",
+    mapbox_style="carto-positron",
     height=500
 )
 st.plotly_chart(map_fig)
 
-# Heatmap Section
-st.subheader("🔥 Correlation Heatmap of Investment Metrics")
-heat_cols = ["Investor Score (Out Of 100)", "Growth Gap Index", "10 Year Growth", "Yield Score", "Buy Affordability Score", "Rent Affordability Score"]
+# Heatmap
+st.subheader("🔥 Correlation Heatmap")
+heat_cols = [
+    "Investor Score (Out Of 100)", "Growth Gap Index", "10 Year Growth",
+    "Yield", "Buy Affordability (Years)", "Rent Affordability (% Of Income)"
+]
 corr = filtered_df[heat_cols].corr()
 
 fig, ax = plt.subplots(figsize=(10, 6))
 sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
 st.pyplot(fig)
 
-# Allow heatmap download
 buf = io.BytesIO()
 fig.savefig(buf, format="png")
 st.download_button(
     label="📥 Download Heatmap as PNG",
     data=buf.getvalue(),
-    file_name="heatmap_investor_metrics.png",
+    file_name="heatmap_raw_investor_metrics.png",
     mime="image/png"
 )
